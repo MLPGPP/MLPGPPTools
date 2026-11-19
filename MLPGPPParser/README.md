@@ -146,6 +146,7 @@ Rules:
 | `data unpack [path\|base]` | Extract each game's zip back into its folder | Working |
 | `data remove <list-file> [-y]` | Delete all data inside the games listed in a text file (folders kept) | Working |
 | `data shift [path\|base]` | Move data from higher ids into empty lower folders (closes gaps) | Working |
+| `data add_buckets=<number>` | Create missing bucket folders `0` .. `number-1` in the games folder | Working |
 | `parser` | Read Google Sheet, build games JSON database | Working (needs valid config) |
 | `help` | Would show help | **Not registered**, does nothing |
 | `folders` | Creates 10 000 empty folders in a hard-coded path | **Not registered**, cannot be run |
@@ -241,6 +242,7 @@ Entry: `run data <mode> [path|base]`
 | `unpack` | Extracts the zip in every numbered game folder back into that folder |
 | `remove` | Deletes all data inside the game folders listed in a text file (see [`data remove`](#data-remove)) |
 | `shift` | Moves data from higher ids into empty lower folders (see [`data shift`](#data-shift)) |
+| `add_buckets=<number>` | Creates missing bucket folders (see [`data add_buckets`](#data-add_buckets)) |
 
 - For `pack`, `unpack` and `shift`, `path` is the games folder. Omit it, or write `base`, to use `--g_path` or the default `O:\MLGPP\g\`.
 - For `remove`, the argument is the list file instead (`run data remove <list-file>`). The games folder comes from `--g_path` or the default.
@@ -364,6 +366,35 @@ How it works:
 - Running it again when there are no gaps does nothing.
 
 **Game ids change.** Every game moved to a lower id gets a new folder name. Anything that refers to ids outside this tool (for example the games JSON from `parser`) must be regenerated after a shift.
+
+### `data add_buckets`
+
+```text
+run data add_buckets=<number>
+run data add_buckets <number>        (same thing, two words)
+```
+
+Makes sure the bucket folders `0` to `<number>-1` exist in the games folder. Missing ones are created as empty folders. Existing folders are not changed.
+
+Examples:
+
+```text
+run data add_buckets=10000                  -> folders 0..9999 (same layout as the old FoldersManager helper)
+run data add_buckets=50 --g_path="D:\games" -> folders 0..49 in D:\games
+```
+
+Use it to:
+
+- add more buckets: raise the number and run again;
+- repair a games folder where bucket folders were deleted: run it with the same number as before.
+
+Rules:
+
+- `<number>` must be a whole number, 1 or more.
+- Folders are numbered from `0`, so `add_buckets=N` creates `N` buckets: `0` through `N-1`.
+- Existing folders are never touched. Their contents are not changed, and no hash files are created.
+- A file with the same name as a missing bucket (for example a file called `4`) blocks that bucket. The command reports it and does not delete or overwrite the file. Other buckets are still created, and the command returns an error.
+- Uses `--g_path` or the default `O:\MLGPP\g\`. It has no path argument of its own.
 
 ### Notes
 
@@ -612,6 +643,12 @@ run data remove "C:\lists\old_games.txt" -y
 
 # Move data down into empty folders after a removal (changes game ids!)
 run data shift
+
+# Create bucket folders 0..9999 (only the missing ones)
+run data add_buckets=10000
+
+# Recreate deleted bucket folders in another games folder
+run data add_buckets=50 --g_path="D:\games"
 
 # Build the games JSON (run from the folder that has Resources\config.json)
 run parser
