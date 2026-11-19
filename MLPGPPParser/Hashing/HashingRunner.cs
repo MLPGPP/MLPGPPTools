@@ -58,6 +58,9 @@ public class HashingRunner : ITaskRunner {
         return hashes;
     }
 
+    private static bool IsHashFile(string path) =>
+        string.Equals(Path.GetExtension(path), ".hash", StringComparison.OrdinalIgnoreCase);
+
     private async Task Find(string pathToCheck, string gamesPath) {
 
         Logger.LogInfo("Loading Hashes DB");
@@ -75,7 +78,19 @@ public class HashingRunner : ITaskRunner {
             Logger.LogError("Invalid file or directory path");
             return;
         }
-        
+
+        // hash files are not game data, so they are never checked
+        var hashFilesSkipped = filesToCheck.Count(IsHashFile);
+        filesToCheck = filesToCheck.Where(file => IsHashFile(file) == false).ToArray();
+        if (hashFilesSkipped > 0) {
+            Logger.LogInfo($"Skipped {hashFilesSkipped} .hash file(s)");
+        }
+
+        if (filesToCheck.Length == 0) {
+            Logger.LogInfo("No files to check");
+            return;
+        }
+
         //sort files by name
         filesToCheck = filesToCheck.OrderBy(f => f).ToArray();
 

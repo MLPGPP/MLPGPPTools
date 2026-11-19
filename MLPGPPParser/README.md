@@ -210,6 +210,7 @@ Checks one file, or every file under a folder (recursively), against all stored 
   - `✅ <file> (<md5>) == <hash file path> (<md5>)` if a stored hash matches (the first match is used);
   - `❌ <file> (<md5>)` if none matches (logged as an error).
 - Files are sorted by full path before checking.
+- `.hash` files are skipped, both when they are found inside the checked folder and when one is given directly. The number skipped is printed (`Skipped N .hash file(s)`). They are not game data, so they never appear in the results.
 
 Examples:
 
