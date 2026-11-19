@@ -34,7 +34,11 @@ if (commandArgs.Length > 0 && commandArgs[0] == "run") {
 } else {
     Logger.LogInfo("Waiting for the command");
     var line = Console.ReadLine();
-    var lineArgs = GlobalOptions.Extract(line.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+    var typedArgs = CommandLine.Split(line);
+    if (typedArgs == null)
+        return -1;
+
+    var lineArgs = GlobalOptions.Extract(typedArgs);
     if (lineArgs == null)
         return -1;
     await TryRunTask(lineArgs);

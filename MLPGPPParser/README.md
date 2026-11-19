@@ -85,7 +85,7 @@ Example: `MLPGPPParser run hash calc base -f`
 
 ### 2. Interactive mode (no `run`)
 
-If the first argument is not `run` (or there are no arguments at all), the program prints `Waiting for the command`, reads **one line** from stdin, splits it on spaces and runs it. It then exits. It does **not** loop.
+If the first argument is not `run` (or there are no arguments at all), the program prints `Waiting for the command`, reads **one line** from stdin, splits it into arguments (quotes group text, see below) and runs it. It then exits. It does **not** loop.
 
 ```text
 > MLPGPPParser
@@ -93,7 +93,7 @@ Waiting for the command
 hash calc base -f
 ```
 
-> Interactive mode splits on spaces only, so paths containing spaces will not work there. Use direct mode for those.
+> In interactive mode, whitespace separates arguments, but text inside double quotes stays together. Put paths with spaces in quotes: `hash calc "D:\my games"`, or `--g_path="D:\my games"`. An unclosed `"` stops the command with an error and nothing runs. See [Quoting tips](#quoting-tips-for-windows).
 
 ### Dispatch rules
 
@@ -561,7 +561,9 @@ Each bug states how it was found:
 
 ## Quoting tips for Windows
 
-- Quote paths that contain spaces: `"O:\MLGPP\other folder"`.
+- Quote paths that contain spaces: `"O:\MLGPP\other folder"`. This works in both direct and interactive mode.
+- In interactive mode, a quote can sit inside an argument: `--g_path="D:\my games"` is one argument. Backslashes are never escapes, so Windows paths are typed as they are.
+- An unclosed `"` in interactive mode stops the command with `unclosed " in command`.
 - **Do not end a quoted path with a backslash.** `"O:\MLGPP\g\"` is parsed incorrectly by Windows argument parsing (the `\"` is read as an escaped quote). Write `"O:\MLGPP\g"` instead. The program adds the trailing `\` itself where it needs it.
 - In PowerShell, put `--` before arguments when calling `dotnet run`, as shown above.
 
