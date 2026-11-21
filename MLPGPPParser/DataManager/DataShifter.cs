@@ -15,18 +15,25 @@ namespace MLPGPPParser.DataManager;
 /// </summary>
 public static class DataShifter {
 
+    /// <param name="startFrom">Only buckets with id &gt;= startFrom take part. Lower buckets are never touched.</param>
+    /// <param name="minBucketId">The minimum bucket id to consider for shifting.</param>
     /// <returns>0 on success, -1 on error.</returns>
-    public static int Shift(string gamesPath) {
-        var entries = GetGameEntries(gamesPath);
-        if (entries == null) {
+    public static int Shift(string gamesPath, uint startFrom = 0, uint shiftLowValue = 0) {
+        var allEntries = GetGameEntries(gamesPath);
+        if (allEntries == null) {
             return -1;
         }
 
+        var entries = allEntries.Where(e => e.Id >= startFrom).ToList();
+
         if (entries.Count == 0) {
-            Logger.LogInfo("No games found");
+            Logger.LogInfo(startFrom == 0 ? "No games found" : $"No games found at or above bucket {startFrom}");
             return 0;
         }
 
+        if (startFrom > 0) {
+            Logger.LogInfo($"Starting from bucket {startFrom}; buckets below it are not touched");
+        }
         Logger.LogInfo($"Shifting data in {entries.Count} game folders");
 
         var movedFolders = 0;

@@ -142,11 +142,13 @@ Rules:
 | `hash find <file-or-folder>` | Compare files against all stored hash files | Working (uses games folder) |
 | `hash coll` | Report game folders whose stored hashes are identical | Working (uses games folder) |
 | `hash find_all` | Placeholder, does nothing | Stub |
+| `hash find_g <other-games-folder>` | Compare the hashes of two games folders (A = `--g_path`/default, B = the argument) | Working |
 | `data pack [path\|base]` | Pack each game's content into one zip | Working |
 | `data unpack [path\|base]` | Extract each game's zip back into its folder | Working |
 | `data remove <list-file> [-y]` | Delete all data inside the games listed in a text file (folders kept) | Working |
-| `data shift [path\|base]` | Move data from higher ids into empty lower folders (closes gaps) | Working |
+| `data shift [path\|base] [start_from=<integer>]` | Move data from higher ids into empty lower folders (closes gaps), optionally only from a given bucket up | Working |
 | `data add_buckets=<number>` | Create missing bucket folders `0` .. `number-1` in the games folder | Working |
+| `data start_from <integer> [--g_path=…]` | Renumber all bucket folders so the first one becomes `<integer>`, keeping order and spacing | Working |
 | `parser` | Read Google Sheet, build games JSON database | Working (needs valid config) |
 | `help` | Would show help | **Not registered**, does nothing |
 | `folders` | Creates 10 000 empty folders in a hard-coded path | **Not registered**, cannot be run |
@@ -231,6 +233,47 @@ Looks for **collisions between game folders**: two different stored hash files w
 
 Recognised but empty. It does nothing and prints nothing.
 
+### `hash find_g <other-games-folder>`
+
+Compares the hashes of two games folders (two "g" databases with the same layout).
+
+- **Folder A** is `--g_path`, or the default `O:\MLGPP\g\`.
+- **Folder B** is the argument. It is required. A missing or extra argument prints a usage message.
+
+How it works:
+
+- Each numbered folder's first `.hash` file is read. Folders with no `.hash` file are **empty buckets**: they are counted and skipped.
+- Invalid hash files are warned about and skipped (and counted).
+- Hashes are compared by algorithm and value, so the same file gives the same hash in both folders.
+
+Output, for every hash in A:
+
+| Line | Meaning |
+|---|---|
+| `SAME    A:13 == B:13` | Same hash, same bucket id in both folders |
+| `MOVED   A:11 == B:12` | Same hash in B, but under a different bucket id |
+| `ONLY_A  A:14 (not in B)` | Hash in A that B does not have |
+
+Then, for every hash in B that A does not have:
+
+| Line | Meaning |
+|---|---|
+| `ONLY_B  B:14 (not in A)` | Hash in B that A does not have |
+
+The last lines give a summary (`same`, `moved`, `only in A`, `only in B`), the number of empty buckets in each folder, and the number of invalid hash files.
+
+Example:
+
+```text
+run hash find_g "D:\games_backup" --g_path="O:\MLGPP\g"
+```
+
+Notes:
+
+- Only the hashes are compared. The games themselves are not read.
+- If one bucket in A matches several buckets in B, all of them are listed (`MOVED   A:11 == B:12, B:30`).
+- Hashes come from the `.hash` files, so a folder must be hashed (`hash calc`) before it can be compared.
+
 ---
 
 ## Task: `data`
@@ -264,7 +307,9 @@ run data unpack "O:\MLGPP\other"   -> custom folder
 For each game folder `<id>`:
 
 1. **Find the content root.** Starting at `<id>`, descend while the folder has no files (`.hash` files don't count) and exactly one subfolder. The first folder that doesn't match is the content root. This removes pointless wrapper folders.
-2. **Decide whether to pack.** Count the files under the content root, excluding `.hash` files. Pack only if there are **more than one**. A single-file game is left alone.
+2. **Decide whether to pack.** Count the files under the content root, excluding `.hash` files. Pack only if there are **more than one**.
+   - **Exactly one file** (for example `23\Game\game.exe`): the file is not zipped. It is moved up into `<id>\` (`23\game.exe`), and the wrapper folders around it are deleted. Empty subfolders in the wrapper are deleted too. If a file with the same name already exists in `<id>\`, nothing is changed and a warning is printed.
+   - **No files**: nothing to do.
 3. **Skip with a warning** if `<id>` already contains a `.zip`, if the zip name is already taken, or if a `.hash` file sits inside a subfolder of the content root.
 4. **Create the zip** `<id>\<content root name>.zip`. It holds the content root's files and empty subfolders, with paths relative to the content root.
 5. **Verify the zip.** It must contain the same files (same sizes) and the same empty folders. If not, the zip is deleted, the originals are kept, and an error is logged.
@@ -363,6 +408,25 @@ How it works:
 - A hash file named `.<id>.in.hash` is renamed to match the new id (`.13.in.hash` → `.12.in.hash`). Other files keep their names.
 - Junctions and symbolic links are never moved or used as targets. They are listed as a warning and skipped.
 - **Nothing is deleted.** Shift only moves.
+
+Starting from a bucket: `start_from=<integer>` makes shift work only on buckets with id `>=` that number. Buckets below it are never touched, including empty ones. Example:
+
+```text
+run data shift start_from=13
+```
+
+```text
+Before                  After
+11\ game.zip            11\ game.zip          (untouched)
+12\ (empty)             12\ (empty)           (untouched, below the start)
+13\ a.zip               13\ a.zip
+14\ (empty)             14\ c.zip  (was 15)
+15\ c.zip               15\ (empty)
+```
+
+- Without `start_from`, shift works on all buckets, the same as `start_from=0`.
+- The value must be a whole number, 0 or more. Anything else (`start_from=-1`, `start_from=abc`, `start_from=`) prints a usage message and nothing runs.
+- It can go with a path, in any order: `run data shift "D:\games" start_from=13`.
 - If a move fails (for example a file is in use), the moves already made in that step are reversed and the command stops. Fix the problem and run it again.
 - Running it again when there are no gaps does nothing.
 
@@ -396,6 +460,47 @@ Rules:
 - Existing folders are never touched. Their contents are not changed, and no hash files are created.
 - A file with the same name as a missing bucket (for example a file called `4`) blocks that bucket. The command reports it and does not delete or overwrite the file. Other buckets are still created, and the command returns an error.
 - Uses `--g_path` or the default `O:\MLGPP\g\`. It has no path argument of its own.
+
+### `data start_from`
+
+```text
+run data start_from <integer>
+run data start_from=<integer>        (same thing)
+```
+
+Renumbers **all** bucket folders in the games folder. The first bucket (the lowest id) becomes `<integer>`, and every other bucket keeps its distance from it. Only the folder names change. The order of the buckets is kept.
+
+Example, `data start_from 10`:
+
+```text
+Before     After
+0          10
+1          11
+2          12
+```
+
+With gaps, the spacing is kept rather than closed up:
+
+```text
+Before     After  (start_from 10)
+3          10
+5          12
+8          15
+```
+
+Rules:
+
+- Hash files are renamed with their folder: `.0.in.hash` → `.10.in.hash`. Their contents are not changed.
+- Data inside the folders is not touched. Nothing is deleted or copied.
+- The renames go through temporary names, so the new ids can overlap the old ones (`start_from 2` on buckets `0 1 2` gives `2 3 4`).
+- Any failure reverses every rename already made in that run, so the games folder ends up as it was. Check the log if the undo itself fails.
+- If a file has the same name as a new bucket id (for example a file called `11`), the command stops before changing anything.
+- Junctions and symbolic links in the games folder also stop the command before anything changes.
+- A command that finds the buckets already starting at `<integer>` does nothing.
+- It uses `--g_path` or the default `O:\MLGPP\g\`. It has no path argument of its own.
+- **Bucket ids change.** Anything outside this tool that stores ids (for example the games JSON from `parser`) must be regenerated afterwards.
+
+Usage errors (a missing, negative or non-numeric value, or an extra argument) print a message and nothing runs.
 
 ### Notes
 
@@ -625,6 +730,10 @@ run hash find "C:\path\to\folder"
 # Find identical game folders
 run hash coll
 
+# Compare two games folders by hash (A = --g_path or default, B = argument)
+run hash find_g "D:\games_backup"
+run hash find_g "D:\games_backup" --g_path="O:\MLGPP\g"
+
 # Use another games folder for any command (global option)
 run hash calc --g_path="D:\games"
 run data pack --g_path="D:\games"
@@ -645,8 +754,14 @@ run data remove "C:\lists\old_games.txt" -y
 # Move data down into empty folders after a removal (changes game ids!)
 run data shift
 
+# Same, but leave buckets 0..12 alone and only shift from bucket 13 up
+run data shift start_from=13
+
 # Create bucket folders 0..9999 (only the missing ones)
 run data add_buckets=10000
+
+# Renumber all buckets so the first one becomes 10 (0->10, 1->11, ...)
+run data start_from 10 --g_path="D:\games"
 
 # Recreate deleted bucket folders in another games folder
 run data add_buckets=50 --g_path="D:\games"

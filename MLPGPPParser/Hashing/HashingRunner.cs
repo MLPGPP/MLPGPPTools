@@ -34,6 +34,23 @@ public class HashingRunner : ITaskRunner {
         else if (mode == "find_all") {
 
         }
+        else if (mode == "find_g") {
+            // hash find_g <other-games-folder>   (this folder: --g_path or the default)
+            if (args.Length < 2 || args.Length > 2) {
+                Logger.LogError("usage: hash find_g <other-games-folder>  (this folder is --g_path or the default)");
+                return -1;
+            }
+
+            var gamesA = GlobalOptions.ResolveGamesFolder();
+            if (gamesA == null)
+                return -1;
+
+            var gamesB = GlobalOptions.ResolveGamesFolder(args[1]);
+            if (gamesB == null)
+                return -1;
+
+            return await GamesComparer.Compare(gamesA, gamesB);
+        }
         else if (mode == "coll") {
             var gamesPath = GlobalOptions.ResolveGamesFolder();
             if (gamesPath == null)
@@ -42,6 +59,19 @@ public class HashingRunner : ITaskRunner {
             var task = Task.Run(() => FindCollisions(gamesPath));
             ConsoleDrawer.RunTask(task, isLogProgress:false);
             await task;
+        } else if(mode == "print") {
+            var gamesPath = GlobalOptions.ResolveGamesFolder(args.Length > 1 ? args[1] : null);
+            if (gamesPath == null)
+                return -1;
+
+            var task = Task.Run(() => HashPrinter.PrintHashes(gamesPath));
+            ConsoleDrawer.RunTask(task, isLogProgress:false);
+            await task;
+        }
+        else {
+            Logger.LogError($"unknown mode: {mode}");
+            return -1;
+            
         }
 
         return -1;

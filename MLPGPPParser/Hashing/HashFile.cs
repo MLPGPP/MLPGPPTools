@@ -21,6 +21,30 @@ public class HashFile {
     private HashFile() {
         
     }
+    
+    public Hash GetHash(HashAlgorithmType algorithmType) {
+        foreach (var hash in Hashes) {
+            if (hash.AlgorithmType == algorithmType) {
+                return hash;
+            }
+        }
+        throw new InvalidOperationException($"Hash of type {algorithmType} not found in hash file.");
+    }
+    
+    public static async Task<HashFile?> TryLoadFromDirectory(string path) {
+        if(File.Exists(path)) {
+            return await LoadHashFile(path);
+        }
+
+        foreach (var file in Directory.EnumerateFiles(path)) {
+            if (file.EndsWith(".hash")) {
+                return await LoadHashFile(file);
+            }
+        }
+            
+        Logger.LogError(($"No .hash file found in directory {path}"));
+        return null;
+    }
 
     public static async Task<HashFile> LoadHashFile(string path) {
         var hashFile = new HashFile();

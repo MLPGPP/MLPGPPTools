@@ -95,8 +95,15 @@ public static class DataPacker {
         }
 
         var filesToPack = allFiles.Where(file => IsHashFile(file) == false).ToArray();
-        if (filesToPack.Length <= 1) {
-            Logger.LogInfo($"{id}: {filesToPack.Length} file(s), nothing to pack");
+
+        // a single file is not zipped, but the wrapper folders around it are still removed
+        if (filesToPack.Length == 1) {
+            UnwrapSingleFile(gameFolder, contentRoot, filesToPack[0]);
+            return;
+        }
+
+        if (filesToPack.Length == 0) {
+            Logger.LogInfo($"{id}: no files, nothing to do");
             return;
         }
 
@@ -118,6 +125,31 @@ public static class DataPacker {
         DeletePointlessFolders(gameFolder, contentRoot);
 
         Logger.LogInfo($"{id}: packed into {Path.GetFileName(zipPath)}");
+    }
+
+    /// <summary>
+    /// The game folder holds one folder chain that ends in a single file: move the file up into the game folder
+    /// and delete the (now empty) wrapper folders.
+    /// </summary>
+    private static void UnwrapSingleFile(string gameFolder, string contentRoot, string file) {
+        var id = Path.GetFileName(gameFolder);
+
+        if (contentRoot == gameFolder) {
+            Logger.LogInfo($"{id}: 1 file already in the game folder, nothing to do");
+            return;
+        }
+
+        var destination = Path.Combine(gameFolder, Path.GetFileName(file));
+        if (File.Exists(destination) || Directory.Exists(destination)) {
+            Logger.LogWarning($"{id}: '{Path.GetFileName(file)}' already exists in the game folder, skipping (nothing was changed)");
+            return;
+        }
+
+        Logger.LogInfo($"{id}: 1 file inside {Path.GetRelativePath(gameFolder, contentRoot)}, moving it up and removing the wrapper folders");
+        File.Move(file, destination);
+        DeleteContent(contentRoot, Array.Empty<string>());
+        DeletePointlessFolders(gameFolder, contentRoot);
+        Logger.LogInfo($"{id}: done");
     }
 
     private static void UnpackGame(string gameFolder) {
